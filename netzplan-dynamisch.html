@@ -1,0 +1,503 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>Ultimativer Netzplan-Trainer & Generator</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f1f5f9;
+            color: #1e293b;
+            margin: 30px;
+        }
+        h1, h2 { text-align: center; color: #0f172a; }
+
+        /* 1. EINGABE-PANEL STYLING */
+        .config-panel {
+            max-width: 800px;
+            margin: 0 auto 30px auto;
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 15px;
+        }
+        th, td {
+            border: 1px solid #cbd5e1;
+            padding: 10px;
+            text-align: center;
+        }
+        th { background-color: #f8fafc; }
+        input {
+            width: 90%;
+            padding: 6px;
+            border: 1px solid #94a3b8;
+            border-radius: 4px;
+            text-align: center;
+        }
+        button {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+        }
+        .btn-add { background: #3b82f6; color: white; }
+        .btn-calc { background: #10b981; color: white; margin-left: 10px; }
+        .btn-delete { background: #ef4444; color: white; padding: 4px 8px; font-size: 12px; }
+
+        /* 2. DIAGRAMM-FLÄCHE STYLING */
+        .diagram-wrapper {
+            position: relative;
+            max-width: 1100px;
+            margin: 20px auto 40px auto;
+            background: #ffffff;
+            border-radius: 8px;
+            box-shadow: 0 4px 10px rgba(0,0,0,0.08);
+            overflow: auto;
+            min-height: 420px;
+        }
+        #arrow-canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
+            pointer-events: none;
+        }
+        #net-graph {
+            position: relative;
+            z-index: 2;
+            width: 100%;
+            height: 100%;
+            min-height: 420px;
+        }
+
+        /* DIE NETZPLAN-BOX (QUADRAT) */
+        .netzplan-box {
+            position: absolute;
+            display: grid;
+            grid-template-columns: repeat(3, 65px);
+            grid-template-rows: repeat(3, 35px);
+            border: 2px solid #475569;
+            text-align: center;
+            background: #ffffff;
+            font-weight: bold;
+            font-size: 12px;
+            border-radius: 4px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        .netzplan-box.is-critical {
+            border: 3px solid #ef4444;
+            background-color: #fff5f5;
+        }
+        .f {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 1px solid #e2e8f0;
+        }
+        .vorgang-name {
+            grid-column: span 3;
+            font-size: 16px;
+            background: #f1f5f9;
+        }
+        .is-critical .vorgang-name {
+            background: #fee2e2;
+            color: #991b1b;
+        }
+        .lbl-faz { background: #e0f2fe; color: #0369a1; }
+        .lbl-d   { background: #fef3c7; color: #b45309; }
+        .lbl-fez { background: #dcfce7; color: #15803d; }
+        .lbl-saz { background: #f3e8ff; color: #6b21a8; }
+        .lbl-puffer { background: #f8fafc; color: #64748b; font-size: 9px; }
+        .lbl-sez { background: #ffe4e6; color: #b91c1c; }
+
+        /* 3. DYNAMISCHE ERKLÄRUNGS-LISTE STYLING */
+        .prozess-liste {
+            max-width: 1100px;
+            margin: 30px auto;
+            display: flex;
+            flex-direction: column;
+            gap: 25px;
+        }
+        .prozess-zeile {
+            display: flex;
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.05);
+            align-items: center;
+            gap: 30px;
+            border-left: 5px solid #94a3b8;
+        }
+        .prozess-zeile.kritisch {
+            border-left: 8px solid #ef4444;
+            background-color: #fff5f5;
+        }
+        .prozess-zeile .netzplan-box {
+            position: relative;
+            left: 0 !important;
+            top: 0 !important;
+            flex-shrink: 0;
+        }
+        .erklaerung { flex-grow: 1; }
+        .erklaerung h3 { margin: 0 0 8px 0; font-size: 18px; color: #1e293b; }
+        .prozess-zeile.kritisch h3 { color: #b91c1c; }
+        .formel {
+            font-family: monospace;
+            background: #e2e8f0;
+            padding: 2px 6px;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        .project-duration {
+            text-align: center;
+            font-size: 18px;
+            font-weight: bold;
+            margin-top: 20px;
+            color: #0f172a;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Dynamischer Netzplan-Trainer</h1>
+
+    <div class="config-panel">
+        <h3>Prozessdaten eingeben</h3>
+        <table id="input-table">
+            <thead>
+                <tr>
+                    <th>Schritt Name</th>
+                    <th>Dauer</th>
+                    <th>Vorgänger</th>
+                    <th>Aktion</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><input type="text" class="inp-name" value="A"></td>
+                    <td><input type="number" class="inp-dauer" value="7"></td>
+                    <td><input type="text" class="inp-prev" value=""></td>
+                    <td><button class="btn-delete" onclick="deleteRow(this)">Löschen</button></td>
+                </tr>
+                <tr>
+                    <td><input type="text" class="inp-name" value="B"></td>
+                    <td><input type="number" class="inp-dauer" value="2"></td>
+                    <td><input type="text" class="inp-prev" value="A"></td>
+                    <td><button class="btn-delete" onclick="deleteRow(this)">Löschen</button></td>
+                </tr>
+                <tr>
+                    <td><input type="text" class="inp-name" value="C"></td>
+                    <td><input type="number" class="inp-dauer" value="6"></td>
+                    <td><input type="text" class="inp-prev" value="B"></td>
+                    <td><button class="btn-delete" onclick="deleteRow(this)">Löschen</button></td>
+                </tr>
+                <tr>
+                    <td><input type="text" class="inp-name" value="D"></td>
+                    <td><input type="number" class="inp-dauer" value="1"></td>
+                    <td><input type="text" class="inp-prev" value="B"></td>
+                    <td><button class="btn-delete" onclick="deleteRow(this)">Löschen</button></td>
+                </tr>
+                <tr>
+                    <td><input type="text" class="inp-name" value="E"></td>
+                    <td><input type="number" class="inp-dauer" value="5"></td>
+                    <td><input type="text" class="inp-prev" value="C,D"></td>
+                    <td><button class="btn-delete" onclick="deleteRow(this)">Löschen</button></td>
+                </tr>
+                <tr>
+                    <td><input type="text" class="inp-name" value="F"></td>
+                    <td><input type="number" class="inp-dauer" value="3"></td>
+                    <td><input type="text" class="inp-prev" value="D"></td>
+                    <td><button class="btn-delete" onclick="deleteRow(this)">Löschen</button></td>
+                </tr>
+                <tr>
+                    <td><input type="text" class="inp-name" value="G"></td>
+                    <td><input type="number" class="inp-dauer" value="1"></td>
+                    <td><input type="text" class="inp-prev" value="E,F"></td>
+                    <td><button class="btn-delete" onclick="deleteRow(this)">Löschen</button></td>
+                </tr>
+            </tbody>
+        </table>
+        <button class="btn-add" onclick="addRow()">+ Zeile hinzufügen</button>
+        <button class="btn-calc" onclick="calculateNetzplan()">Netzplan berechnen & zeichnen</button>
+    </div>
+
+    <hr style="border: 1px solid #cbd5e1; max-width: 1100px;">
+
+    <h2>1. Visuelles Diagramm</h2>
+    <div id="project-info" class="project-duration"></div>
+    <div class="diagram-wrapper">
+        <canvas id="arrow-canvas"></canvas>
+        <div id="net-graph"></div>
+    </div>
+
+    <hr style="border: 1px solid #cbd5e1; max-width: 1100px;">
+
+    <h2>2. Schritt-für-Schritt Werte-Erklärung</h2>
+    <div class="prozess-liste" id="expl-list-container"></div>
+
+    <script>
+        function addRow() {
+            const tbody = document.querySelector("#input-table tbody");
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td><input type="text" class="inp-name" placeholder="z.B. X"></td>
+                <td><input type="number" class="inp-dauer" value="1"></td>
+                <td><input type="text" class="inp-prev" placeholder="z.B. A"></td>
+                <td><button class="btn-delete" onclick="deleteRow(this)">Löschen</button></td>
+            `;
+            tbody.appendChild(tr);
+        }
+
+        function deleteRow(btn) { btn.closest("tr").remove(); }
+
+        function createBoxHTML(node) {
+            return `
+                <div class="f lbl-faz">FAZ: ${node.faz}</div>
+                <div class="f lbl-d">D: ${node.dauer}</div>
+                <div class="f lbl-fez">FEZ: ${node.fez}</div>
+                <div class="f vorgang-name">${node.name}</div>
+                <div class="f lbl-saz">SAZ: ${node.saz}</div>
+                <div class="f lbl-puffer">GP:${node.gp} FP:${node.fp}</div>
+                <div class="f lbl-sez">SEZ: ${node.sez}</div>
+            `;
+        }
+
+        function calculateNetzplan() {
+            const rows = document.querySelectorAll("#input-table tbody tr");
+            let nodes = {};
+
+            rows.forEach(row => {
+                let name = row.querySelector(".inp-name").value.trim().toUpperCase();
+                let dauer = parseInt(row.querySelector(".inp-dauer").value) || 0;
+                let prevStr = row.querySelector(".inp-prev").value.trim().toUpperCase();
+
+                if (!name) return;
+                let predecessors = prevStr ? prevStr.split(",").map(s => s.trim()).filter(s => s) : [];
+
+                nodes[name] = {
+                    name: name, dauer: dauer, predecessors: predecessors, successors: [],
+                    faz: 0, fez: 0, saz: 0, sez: 0, gp: 0, fp: 0, isCritical: false,
+                    level: 0, rowOffset: 0
+                };
+            });
+
+            for (let id in nodes) {
+                nodes[id].predecessors.forEach(pred => {
+                    if (nodes[pred]) nodes[pred].successors.push(id);
+                });
+            }
+            // VORWÄRTSRECHNUNG (FAZ & FEZ)
+            let changed = true;
+            while (changed) {
+                changed = false;
+                for (let id in nodes) {
+                    let node = nodes[id];
+                    let maxFez = 0;
+                    let maxLevel = 0;
+
+                    node.predecessors.forEach(pred => {
+                        if (nodes[pred]) {
+                            maxFez = Math.max(maxFez, nodes[pred].fez);
+                            maxLevel = Math.max(maxLevel, nodes[pred].level + 1);
+                        }
+                    });
+
+                    let oldFaz = node.faz;
+                    let oldFez = node.fez;
+                    let oldLevel = node.level;
+
+                    node.faz = maxFez;
+                    node.fez = node.faz + node.dauer;
+                    node.level = maxLevel;
+
+                    if (node.faz !== oldFaz || node.fez !== oldFez || node.level !== oldLevel) changed = true;
+                }
+            }
+
+            let maxProjectFez = 0;
+            for (let id in nodes) maxProjectFez = Math.max(maxProjectFez, nodes[id].fez);
+
+            // RÜCKWÄRTSRECHNUNG (SEZ & SAZ)
+            for (let id in nodes) {
+                nodes[id].sez = maxProjectFez;
+                nodes[id].saz = nodes[id].sez - nodes[id].dauer;
+            }
+
+            changed = true;
+            while (changed) {
+                changed = false;
+                for (let id in nodes) {
+                    let node = nodes[id];
+                    if (node.successors.length > 0) {
+                        let minSaz = Infinity;
+                        node.successors.forEach(succ => {
+                            if (nodes[succ]) minSaz = Math.min(minSaz, nodes[succ].saz);
+                        });
+
+                        let oldSez = node.sez;
+                        node.sez = minSaz;
+                        node.saz = node.sez - node.dauer;
+
+                        if (node.sez !== oldSez) changed = true;
+                    }
+                }
+            }
+
+            // PUFFER & SCHLEIFEN FÜR VERTIKALE ZEILEN-OFFSETS
+            let levelCounts = {};
+            for (let id in nodes) {
+                let node = nodes[id];
+                node.gp = node.saz - node.faz;
+
+                if (node.successors.length > 0) {
+                    let minSuccFaz = Infinity;
+                    node.successors.forEach(succ => {
+                        if (nodes[succ]) minSuccFaz = Math.min(minSuccFaz, nodes[succ].faz);
+                    });
+                    node.fp = minSuccFaz - node.fez;
+                } else {
+                    node.fp = maxProjectFez - node.fez;
+                }
+
+                if (node.gp === 0) node.isCritical = true;
+                if (!levelCounts[node.level]) levelCounts[node.level] = [];
+                levelCounts[node.level].push(node);
+            }
+
+            for (let lvl in levelCounts) {
+                levelCounts[lvl].forEach((node, index) => { node.rowOffset = index; });
+            }
+
+            renderGraphAndList(nodes, maxProjectFez);
+        }
+
+        function renderGraphAndList(nodes, totalDuration) {
+            const container = document.getElementById("net-graph");
+            const canvas = document.getElementById("arrow-canvas");
+            const infoDiv = document.getElementById("project-info");
+            const listContainer = document.getElementById("expl-list-container");
+
+            container.innerHTML = "";
+            listContainer.innerHTML = "";
+            infoDiv.innerText = `Gesamtprojektdauer: ${totalDuration} Zeiteinheiten`;
+
+            const boxWidth = 195;
+            const boxHeight = 105;
+            const colWidth = 260;
+            const rowHeight = 160;
+
+            const wrapper = document.querySelector(".diagram-wrapper");
+            canvas.width = wrapper.clientWidth;
+            canvas.height = 430;
+            const ctx = canvas.getContext("2d");
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            let positions = {};
+            let sortedNodes = Object.values(nodes).sort((a, b) => a.faz - b.faz || a.name.localeCompare(b.name));
+
+            // DIAGRAMM ZEICHNEN
+            sortedNodes.forEach(node => {
+                const box = document.createElement("div");
+                box.className = `netzplan-box ${node.isCritical ? 'is-critical' : ''}`;
+
+                let posX = 40 + node.level * colWidth;
+                let posY = 50 + node.rowOffset * rowHeight;
+
+                if(node.name === 'F') posY = 50 + 1 * rowHeight;
+                if(node.name === 'E') posY = 50 + 0 * rowHeight;
+
+                positions[node.name] = { x: posX, y: posY };
+
+                box.style.left = posX + "px";
+                box.style.top = posY + "px";
+                box.style.width = boxWidth + "px";
+                box.style.height = boxHeight + "px";
+
+                box.innerHTML = createBoxHTML(node);
+                container.appendChild(box);
+
+                // TEXT-ERKLÄRUNGEN GENERIEREN
+                const rowDiv = document.createElement("div");
+                rowDiv.className = `prozess-zeile ${node.isCritical ? 'kritisch' : ''}`;
+
+                const miniBox = document.createElement("div");
+                miniBox.className = `netzplan-box ${node.isCritical ? 'is-critical' : ''}`;
+                miniBox.style.width = boxWidth + "px";
+                miniBox.style.height = boxHeight + "px";
+                miniBox.innerHTML = createBoxHTML(node);
+
+                let vorwaertsText = node.predecessors.length === 0
+                    ? `Da das Projekt hier startet, beginnt der Schritt bei <span class="formel">FAZ = ${node.faz}</span>. Plus die Dauer von ${node.dauer} Tagen ist er frühestens an Tag <span class="formel">FEZ = ${node.fez}</span> fertig.`
+                    : `Er kann erst starten, wenn seine Vorgänger fertig sind. Die höchste Fertigstellungszeit der Vorgänger (${node.predecessors.join(", ")}) ist Tag ${node.faz}. Daher gilt <span class="formel">FAZ = ${node.faz}</span>. Plus Dauer ergibt <span class="formel">${node.faz} + ${node.dauer} = FEZ: ${node.fez}</span>.`;
+
+                let rueckwaertsText = node.successors.length === 0
+                    ? `Als Schlussschritt darf er nicht das Projektende überschreiten. Daher ist das Limit <span class="formel">SEZ = ${node.sez}</span>. Minus Dauer ergibt den spätesten Start von <span class="formel">SAZ = ${node.saz}</span>.`
+                    : `Er liefert an die Nachfolger (${node.successors.join(", ")}). Da rückwärts immer das Minimum gilt, darf er spätestens an Tag <span class="formel">SEZ = ${node.sez}</span> fertig sein. Minus Dauer ergibt <span class="formel">SAZ = ${node.saz}</span>.`;
+
+                let pufferText = node.isCritical
+                    ? `Dieser Vorgang hat **0 Tage Gesamtpuffer** (<span class="formel">GP = 0</span>). Er liegt auf dem **kritischen pfad** und darf sich niemals verzögern!`
+                    : `Dieser Vorgang hat **${node.gp} Tage Gesamtpuffer** und **${node.fp} Tage freien Puffer**. Er darf sich also entspannt verschieben, ohne das Projektende zu gefährden.`;
+
+                const textDiv = document.createElement("div");
+                textDiv.className = "erklaerung";
+                textDiv.innerHTML = `
+                    <h3>Vorgang ${node.name} (${node.isCritical ? 'KRITISCH' : 'Mit Puffer'})</h3>
+                    <p><strong>Vorwärtsrechnung:</strong> ${vorwaertsText}</p>
+                    <p><strong>Rückwärtsrechnung:</strong> ${rueckwaertsText}</p>
+                    <p><strong>Puffer-Status:</strong> ${pufferText}</p>
+                `;
+
+                rowDiv.appendChild(miniBox);
+                rowDiv.appendChild(textDiv);
+                listContainer.appendChild(rowDiv);
+            });
+
+            // VERBINDUNGSPFEILE AUF CANVAS ZEICHNEN
+            setTimeout(() => {
+                for (let id in nodes) {
+                    let node = nodes[id];
+                    let startPos = positions[node.name];
+                    node.successors.forEach(succId => {
+                        let endPos = positions[succId];
+                        if (!startPos || !endPos) return;
+
+                        let startX = startPos.x + boxWidth;
+                        let startY = startPos.y + (boxHeight / 2);
+                        let endX = endPos.x;
+                        let endY = endPos.y + (boxHeight / 2);
+
+                        ctx.beginPath();
+                        ctx.moveTo(startX, startY);
+                        if (startY !== endY) {
+                            let midX = startX + (endX - startX) / 2;
+                            ctx.lineTo(midX, startY);
+                            ctx.lineTo(midX, endY);
+                        }
+                        ctx.lineTo(endX, endY);
+                        ctx.strokeStyle = (node.isCritical && nodes[succId].isCritical) ? "#ef4444" : "#94a3b8";
+                        ctx.lineWidth = (node.isCritical && nodes[succId].isCritical) ? 3 : 2;
+                        ctx.stroke();
+
+                        ctx.beginPath();
+                        ctx.fillStyle = ctx.strokeStyle;
+                        ctx.moveTo(endX, endY);
+                        ctx.lineTo(endX - 8, endY - 5);
+                        ctx.lineTo(endX - 8, endY + 5);
+                        ctx.fill();
+                    });
+                }
+            }, 50);
+        }
+
+        window.addEventListener('resize', calculateNetzplan);
+        calculateNetzplan();
+    </script>
+</body>
+</html>

@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <title>IPv4 Subnetting Trainer</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: #f1f5f9;
+            color: #1e293b;
+            margin: 30px;
+        }
+        h1 { text-align: center; color: #0f172a; margin-bottom: 20px; }
+
+        .trainer-card {
+            max-width: 650px;
+            margin: 0 auto;
+            background: white;
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+        }
+
+        .aufgabe-box {
+            background: #e0f2fe;
+            color: #0369a1;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 20px;
+            border: 2px solid #bae6fd;
+        }
+
+        .input-group {
+            margin-bottom: 15px;
+            display: grid;
+            grid-template-columns: 200px 1fr;
+            align-items: center;
+            gap: 10px;
+        }
+
+        label { font-weight: bold; font-size: 14px; }
+
+        input {
+            padding: 8px;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: monospace;
+        }
+
+        .btn-container {
+            display: flex;
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        button {
+            flex: 1;
+            padding: 12px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 15px;
+            transition: background 0.2s;
+        }
+
+        .btn-next { background: #3b82f6; color: white; }
+        .btn-check { background: #10b981; color: white; }
+        button:hover { opacity: 0.9; }
+
+        /* Feedback & Erklärung */
+        .feedback {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 8px;
+            display: none;
+            font-weight: 500;
+        }
+        .correct { background: #dcfce7; color: #166534; border: 1px solid #bbf7d0; }
+        .wrong { background: #fee2e2; color: #991b1b; border: 1px solid #fecaca; }
+
+        .solution-details {
+            margin-top: 15px;
+            background: #f8fafc;
+            padding: 15px;
+            border-radius: 8px;
+            border: 1px solid #e2e8f0;
+            font-size: 13px;
+            display: none;
+        }
+        .solution-details h4 { margin-top: 0; color: #0f172a; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px; }
+        .formel { font-family: monospace; background: #e2e8f0; padding: 2px 4px; border-radius: 4px; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+    <h1>IPv4 Subnetting-Trainer</h1>
+
+    <div class="trainer-card">
+        <!-- Hier wird die Zufalls-IP angezeigt -->
+        <div class="aufgabe-box" id="display-ip">
+            Generiere eine Aufgabe...
+        </div>
+
+        <!-- Eingabe-Felder für den Nutzer -->
+        <div class="input-group">
+            <label for="ans-sm">Subnetzmaske (SM):</label>
+            <input type="text" id="ans-sm" placeholder="z.B. 255.255.255.128" autocomplete="off">
+        </div>
+
+        <div class="input-group">
+            <label for="ans-ips">Nutzbare IP-Adressen:</label>
+            <input type="number" id="ans-ips" placeholder="z.B. 126" autocomplete="off">
+        </div>
+
+        <div class="input-group">
+            <label for="ans-net">Netzadresse (Net-ID):</label>
+            <input type="text" id="ans-net" placeholder="z.B. 192.168.1.0" autocomplete="off">
+        </div>
+
+        <div class="input-group">
+            <label for="ans-br">Broadcast-Adresse:</label>
+            <input type="text" id="ans-br" placeholder="z.B. 192.168.1.127" autocomplete="off">
+        </div>
+
+        <!-- Steuerungs-Buttons -->
+        <div class="btn-container">
+            <button class="btn-next" onclick="generateTask()">🎲 Neue Aufgabe</button>
+            <button class="btn-check" onclick="checkAnswers()">✔️ Auswerten</button>
+        </div>
+
+        <!-- Ergebnis-Meldung -->
+        <div id="feedback-box" class="feedback"></div>
+
+        <!-- Ausführlicher Spickzettel & Rechenweg-Erklärung -->
+        <div id="solution-box" class="solution-details"></div>
+    </div>
+    <script>
+        // Speicher für die aktuell generierte richtige Lösung
+        let currentSolution = {};
+
+        // Generiert eine komplett zufällige Aufgabe nach den gelernten Regeln
+        function generateTask() {
+            // Eingaben und Feedback zurücksetzen
+            document.getElementById("ans-sm").value = "";
+            document.getElementById("ans-ips").value = "";
+            document.getElementById("ans-net").value = "";
+            document.getElementById("ans-br").value = "";
+
+            const feedbackBox = document.getElementById("feedback-box");
+            const solutionBox = document.getElementById("solution-box");
+            feedbackBox.style.display = "none";
+            solutionBox.style.display = "none";
+
+            // 1. Zufälliges Netz generieren (Klassische Heimnetze)
+            const baseNets = ["192.168.1", "192.168.10", "172.16.1", "10.0.0"];
+            const randomBase = baseNets[Math.floor(Math.random() * baseNets.length)];
+
+            // Zufälliges letztes Oktett (Hausnummer) zwischen 1 und 254
+            const randomHost = Math.floor(Math.random() * 254) + 1;
+            const ipAddress = `${randomBase}.${randomHost}`;
+
+            // 2. Zufällige Maske wählen (/25, /26, /27)
+            const cidrs = [25, 26, 27, 28, 29 ];
+            const randomCidr = cidrs[Math.floor(Math.random() * cidrs.length)];
+
+            // 3. Richtige Werte mathematisch berechnen
+            let maskEnd = 0;
+            if (randomCidr === 25) maskEnd = 128;
+            if (randomCidr === 26) maskEnd = 192;
+            if (randomCidr === 27) maskEnd = 224;
+            if (randomCidr === 28) maskEnd = 240;
+            if (randomCidr === 29) maskEnd = 248;
+
+            const subnetMask = `255.255.255.${maskEnd}`;
+
+            // Goldregel: Blockgröße bestimmen
+            const blockSize = 256 - maskEnd;
+            const usableIps = blockSize - 2;
+
+            // Welcher Block (Array-Index) umschließt die Zufallszahl?
+            const blockIndex = Math.floor(randomHost / blockSize);
+            const netStart = blockIndex * blockSize;
+            const brEnd = netStart + blockSize - 1;
+
+            const netAddress = `${randomBase}.${netStart}`;
+            const brAddress = `${randomBase}.${brEnd}`;
+
+            // Lösung speichern
+            currentSolution = {
+                ip: ipAddress,
+                cidr: randomCidr,
+                sm: subnetMask,
+                maskEnd: maskEnd,
+                blockSize: blockSize,
+                ips: usableIps,
+                net: netAddress,
+                br: brAddress,
+                netStart: netStart,
+                brEnd: brEnd
+            };
+
+            // Aufgabe auf dem Bildschirm anzeigen
+            document.getElementById("display-ip").innerText = `${ipAddress} / ${randomCidr}`;
+        }
+
+        // Wertet deine eingegebenen Antworten aus
+        function checkAnswers() {
+            if (!currentSolution.ip) {
+                alert("Bitte generiere zuerst eine Aufgabe über den Würfel-Knopf!");
+                return;
+            }
+
+            // Nutzereingaben holen
+            const userSm = document.getElementById("ans-sm").value.trim();
+            const userIps = parseInt(document.getElementById("ans-ips").value);
+            const userNet = document.getElementById("ans-net").value.trim();
+            const userBr = document.getElementById("ans-br").value.trim();
+
+            // Prüfen, ob alle Felder richtig sind
+            const smCorrect = (userSm === currentSolution.sm);
+            const ipsCorrect = (userIps === currentSolution.ips);
+            const netCorrect = (userNet === currentSolution.net);
+            const brCorrect = (userBr === currentSolution.br);
+
+            const allCorrect = smCorrect && ipsCorrect && netCorrect && brCorrect;
+
+            const feedbackBox = document.getElementById("feedback-box");
+            feedbackBox.style.display = "block";
+
+            if (allCorrect) {
+                feedbackBox.className = "feedback correct";
+                feedbackBox.innerHTML = "🎯 Genial! Alle Werte sind absolut fehlerfrei berechnet. Du hast es voll drauf!";
+            } else {
+                feedbackBox.className = "feedback wrong";
+                feedbackBox.innerHTML = "❌ Da ist leider noch ein Fehler drin. Schau dir unten den genauen Rechenweg an, um den Fehler zu finden.";
+            }
+
+            // Ausführliche Erklärung drunter rendern
+            const solutionBox = document.getElementById("solution-box");
+            solutionBox.style.display = "block";
+            solutionBox.innerHTML = `
+                <h4>Schritt-für-Schritt Rechenweg für ${currentSolution.ip} / ${currentSolution.cidr}:</h4>
+                <p><strong>1. Subnetzmaske:</strong> Bei einem <span class="formel">/${currentSolution.cidr}</span>-Netz endet die Maske auf <span class="formel">.${currentSolution.maskEnd}</span>. Die komplette Maske lautet daher: <span class="formel">${currentSolution.sm}</span>.</p>
+                <p><strong>2. Nutzbare Adressen (Dein Profi-Trick):</strong><br>
+                Rechne zuerst die Blockgröße: <span class="formel">256 - ${currentSolution.maskEnd} = ${currentSolution.blockSize}</span>.<br>
+                Ziehe jetzt die 2 reservierten Adressen ab: <span class="formel">${currentSolution.blockSize} - 2 = ${currentSolution.ips}</span> nutzbare IPs.</p>
+                <p><strong>3. Netz- und Broadcastadresse (Dein Array-Trick):</strong><br>
+                Das Netzwerk springt immer in <span class="formel">${currentSolution.blockSize}er-Schritten</span> ab der 0. Die Blöcke lauten:<br>
+                ... , <span class="formel">.${currentSolution.netStart}</span> bis <span class="formel">.${currentSolution.brEnd}</span> , ...<br>
+                Da das Ende deiner IP auf <span class="formel">.${currentSolution.ip.split('.').pop()}</span> endet, rutscht sie genau in diesen Block!<br>
+                • Start des Blocks (Netzadresse): <span class="formel">${currentSolution.net}</span><br>
+                • Ende des Blocks (Broadcast): <span class="formel">${currentSolution.br}</span></p>
+            `;
+        }
+
+        // Direkt beim ersten Öffnen eine Aufgabe anzeigen
+        window.onload = generateTask;
+    </script>
+</body>
+</html>
