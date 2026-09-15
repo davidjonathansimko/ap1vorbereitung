@@ -1,16 +1,13 @@
-# This is a sample Python script.
+import streamlit as st
+import streamlit.components.v1 as components
 
-# Press Umschalt+F10 to execute it or replace it with your code.
-# Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
+st.set_page_config(page_title="Netzplan-Trainer", layout="wide")
 
+st.title("Ultimativer Netzplan-Trainer & Generator")
 
-def print_hi(name):
-    # Use a breakpoint in the code line below to debug your script.
-    print(f'Hi, {name}')  # Press Strg+F8 to toggle the breakpoint.
+# Falls Sie Ihr bestehendes HTML direkt anzeigen lassen möchten:
+with open("netzplan-dynamisch.html", "r", encoding="utf-8") as f:
+    html_code = f.read()
 
-
-# Press the green button in the gutter to run the script.
-if __name__ == '__main__':
-    print_hi('PyCharm')
-
-# See PyCharm help at https://www.jetbrains.com/help/pycharm/
+# HTML in Streamlit rendern (Höhe anpassen falls nötig)
+components.html(html_code, height=800, scrolling=True)
